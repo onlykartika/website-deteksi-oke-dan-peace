@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oke &amp; Peace — Ganti Icon micro:bit</title>
+<meta name="description" content="Ganti icon micro:bit dengan gestur tangan Oke dan Peace memakai Teachable Machine dan Web Bluetooth.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
+<style>
+:root{
+  --bg:oklch(.87 .075 336);
+  --bg-dot:oklch(.94 .05 340);
+  --card:oklch(.995 .005 340);
+  --pink:oklch(.68 .19 352);
+  --pink-deep:oklch(.60 .20 352);
+  --pink-soft:oklch(.92 .06 345);
+  --pink-pale:oklch(.96 .03 345);
+  --yellow:oklch(.92 .14 95);
+  --blue:oklch(.80 .09 250);
+  --blue-deep:oklch(.55 .12 255);
+  --mint:oklch(.88 .10 165);
+  --mint-deep:oklch(.55 .10 165);
+  --coral:oklch(.68 .16 25);
+  --text:oklch(.45 .10 355);
+  --muted:oklch(.62 .07 350);
+  --led-on:oklch(.62 .21 25);
+  --led-off:oklch(.95 .02 345);
+  --shadow:6px 6px 0 oklch(.90 .06 345);
+  --display:'Baloo 2',cursive;
+  --body:'Quicksand',sans-serif;
+  --mono:'Space Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--body);font-weight:600;color:var(--text);min-height:100vh;
+  padding:26px 22px 40px;line-height:1.6;
+  background-color:var(--bg);
+  background-image:radial-gradient(var(--bg-dot) 18%,transparent 20%);
+  background-size:34px 34px;background-position:0 0;
+}
+.container{max-width:1080px;margin:auto}
+
+/* ===== BUNTING FLAGS ===== */
+.bunting{display:flex;justify-content:center;gap:0;margin:0 auto 8px;max-width:760px}
+.flag{width:0;height:0;border-left:17px solid transparent;border-right:17px solid transparent;border-top:32px solid var(--card);position:relative;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.06))}
+.flag::after{content:'✿';position:absolute;top:-30px;left:-10px;font-size:11px;color:var(--pink)}
+.flag.c1{border-top-color:oklch(.90 .08 95)}.flag.c1::after{color:oklch(.65 .13 60)}
+.flag.c2{border-top-color:oklch(.87 .07 250)}.flag.c2::after{color:var(--blue-deep)}
+.flag.c3{border-top-color:oklch(.88 .09 165)}.flag.c3::after{color:oklch(.mint-deep)}
+.flag.c4{border-top-color:oklch(.94 .06 345)}.flag.c4::after{color:var(--pink)}
+.flag:nth-child(odd){transform:rotate(-6deg)}
+.flag:nth-child(even){transform:rotate(6deg)}
+
+/* ===== CARDS ===== */
+.frame{position:relative;background:var(--card);border-radius:38px;padding:30px 30px 28px;
+  box-shadow:var(--shadow);margin-bottom:26px}
+.frame::before{content:'';position:absolute;inset:-9px;border:5px solid var(--pink);border-radius:44px;pointer-events:none}
+.frame-header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.title-wrap{position:relative}
+.title-tag{display:inline-block;background:var(--yellow);border:3px solid var(--pink);border-radius:999px;
+  padding:8px 22px;font:700 12px var(--body);letter-spacing:2px;color:var(--text);text-transform:uppercase;
+  box-shadow:3px 3px 0 var(--pink-soft);transform:rotate(-2deg);margin-bottom:12px}
+h1{font:800 clamp(28px,5vw,44px)/1.15 var(--display);color:var(--pink-deep)}
+h1 .hl{color:var(--blue-deep)}
+.subtitle{font-size:14px;color:var(--muted);max-width:520px;margin-top:6px}
+.sticker{position:absolute;font-size:46px;filter:drop-shadow(2px 3px 0 rgba(0,0,0,.08));animation:bob 3.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-8px) rotate(4deg)}}
+
+.badge{display:inline-flex;align-items:center;gap:8px;border:3px solid var(--pink);background:var(--pink-pale);
+  border-radius:999px;padding:9px 16px;font:700 11px var(--mono);white-space:nowrap}
+.badge i{width:9px;height:9px;border-radius:50%;background:var(--coral)}
+.badge.live{background:oklch(.93 .07 165);color:var(--mint-deep)}.badge.live i{background:var(--mint-deep)}
+.badge.err{color:var(--coral)}.badge.err i{background:var(--coral)}
+
+/* ===== SECTION TITLES ===== */
+.section-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:30px 4px 16px}
+.section-head h2{font:800 22px var(--display);color:var(--pink-deep)}
+.section-head h2::before{content:'🌸';margin-right:8px;font-size:18px}
+.section-head p{font-size:12px;color:var(--muted)}
+
+/* ===== LAYOUTS ===== */
+.workspace{display:grid;grid-template-columns:1.15fr 1fr;gap:22px;align-items:start}
+.workspace>.stack{display:flex;flex-direction:column;gap:22px}
+.mini-frame{position:relative;background:var(--card);border-radius:26px;padding:20px 18px 18px;box-shadow:var(--shadow)}
+.mini-frame::before{content:'';position:absolute;inset:-7px;border:4px solid var(--pink);border-radius:32px;pointer-events:none}
+.mini-frame.blue::before{border-color:var(--blue)}
+.mini-frame.mint::before{border-color:var(--mint)}
+.frame-title{display:inline-block;background:var(--pink-soft);border:2.5px solid var(--pink);border-radius:999px;
+  padding:5px 16px;font:700 11px var(--body);letter-spacing:1.5px;text-transform:uppercase;color:var(--pink-deep);margin-bottom:14px}
+.mini-frame.blue .frame-title{background:oklch(.93 .05 250);border-color:var(--blue);color:var(--blue-deep)}
+.mini-frame.mint .frame-title{background:oklch(.93 .06 165);border-color:var(--mint);color:var(--mint-deep)}
+
+/* ===== CAMERA ===== */
+.camera-scene{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(180deg,oklch(.90 .07 250),oklch(.94 .05 95));padding:8px}
+#webcam-container{position:relative;width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:16px;overflow:hidden;background:oklch(.96 .02 250)}
+#webcam-container canvas,#webcam-container video{width:100% !important;height:auto !important;display:block;border-radius:16px}
+.camera-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9}
+.camera-id{display:flex;justify-content:space-between;margin-top:10px;color:var(--muted);font:10px var(--mono)}
+.prediction{text-align:center;padding:16px 0 4px}
+.prediction-label{font:800 22px var(--display);color:var(--pink-deep);min-height:30px}
+.prediction-conf{font-size:12px;color:var(--muted);min-height:18px;margin-top:3px}
+.camera-tags{display:flex;justify-content:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.camera-tag{border:2.5px solid var(--pink);border-radius:999px;padding:4px 14px;font:700 11px var(--body);background:var(--pink-soft);color:var(--pink-deep)}
+.camera-tag:nth-child(2){border-color:var(--blue);background:oklch(.93 .05 250);color:var(--blue-deep)}
+.camera-tag:nth-child(3){border-color:var(--mint);background:oklch(.93 .06 165);color:var(--mint-deep)}
+
+/* ===== STATUS LIST ===== */
+.status-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:2px dashed var(--pink-soft);font-size:12.5px}
+.status-item:last-child{border-bottom:0}
+.status-label{color:var(--muted)}
+.status-value{font-weight:700;text-align:right}
+.status-value.ok{color:var(--mint-deep)}
+.status-value.off,.status-value.red{color:var(--coral)}
+.status-value.blue{color:var(--blue-deep)}
+.status-value.other{color:var(--muted)}
+
+/* ===== BUTTONS ===== */
+.btn-group{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{font:700 12px var(--body);letter-spacing:.4px;border:3px solid var(--pink);border-radius:999px;
+  background:var(--pink);color:#fff;padding:12px 10px;min-height:46px;cursor:pointer;
+  box-shadow:3px 3px 0 var(--pink-deep);transition:transform .15s,box-shadow .15s,filter .15s}
+button:hover:not(:disabled){filter:brightness(1.07);transform:translateY(-2px)}
+button:active:not(:disabled){transform:translate(3px,3px);box-shadow:none}
+button:disabled{background:var(--pink-pale);color:var(--muted);border-color:var(--pink-soft);box-shadow:none;opacity:.7;cursor:not-allowed}
+button.secondary{background:var(--blue);border-color:var(--blue-deep);box-shadow:3px 3px 0 var(--blue-deep)}
+button.danger{background:var(--card);color:var(--coral);border-color:var(--coral);box-shadow:3px 3px 0 oklch(.90 .05 25)}
+.info{font-size:11px;color:var(--muted);line-height:1.9;margin-top:14px}
+.info strong{color:var(--pink-deep)}
+
+/* ===== LED MATRIX ===== */
+.mb-preview{display:flex;align-items:center;gap:18px;justify-content:center;padding:8px 0 4px}
+.mb-board{background:oklch(.28 .05 260);border-radius:14px;padding:12px;box-shadow:inset 0 0 0 3px oklch(.35 .06 260),4px 4px 0 oklch(.90 .05 260)}
+.led-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;width:132px;height:132px}
+.led{border-radius:50%;background:var(--led-off);box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:background .25s}
+.led.on{background:var(--led-on);box-shadow:0 0 8px oklch(.62 .21 25 / .8)}
+.mb-caption{text-align:center}
+.mb-caption b{display:block;font:800 15px var(--display);color:var(--pink-deep)}
+.mb-caption small{font-size:10.5px;color:var(--muted)}
+.icon-legend{display:flex;justify-content:center;gap:22px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.icon-legend span b{color:var(--pink-deep)}
+
+/* ===== LOG ===== */
+.log-box{font:11px/1.9 var(--mono);color:var(--muted);height:78px;overflow-y:auto}
+.log-box:empty::before{content:'> _';color:var(--muted)}
+
+footer{border-top:3px dashed var(--pink-soft);margin-top:30px;padding-top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font:700 11px var(--body);flex-wrap:wrap;gap:8px}
+footer .foot-stickers{font-size:20px;letter-spacing:4px}
+
+@media(max-width:860px){
+  .workspace{grid-template-columns:1fr}
+  .workspace>.stack{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .sticker{display:none}
+}
+@media(max-width:560px){
+  body{padding:18px 12px 30px}
+  .frame{padding:22px 16px 20px;border-radius:28px}
+  .workspace>.stack{grid-template-columns:1fr}
+  .btn-group{grid-template-columns:1fr 1fr}
+  h1{font-size:26px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="bunting" aria-hidden="true">
+    <span class="flag c1"></span><span class="flag c2"></span><span class="flag c3"></span><span class="flag c4"></span>
+    <span class="flag c2"></span><span class="flag c1"></span><span class="flag c3"></span><span class="flag c4"></span>
+    <span class="flag c3"></span><span class="flag c2"></span><span class="flag c1"></span><span class="flag c4"></span>
+  </div>
+
+  <!-- ================= HEADER ================= -->
+  <div class="frame">
+    <span class="sticker" style="top:-24px;right:44px">🐰</span>
+    <span class="sticker" style="top:-18px;left:36px;animation-delay:.8s">🌈</span>
+    <div class="frame-header">
+      <div class="title-wrap">
+        <div class="title-tag">✿ One Page Web Design ✿</div>
+        <h1>Ganti Icon micro:bit <span class="hl">Oke &amp; Peace</span> 🤟</h1>
+        <p class="subtitle">Tunjukkan gestur <strong>Oke</strong> 👌 atau <strong>Peace</strong> ✌️ ke kamera, dan icon di micro:bit ikut berganti lewat Bluetooth!</p>
+      </div>
+      <span class="badge" id="badge"><i></i><span id="badgeText">Menghubungkan micro:bit...</span></span>
+    </div>
+  </div>
+
+  <!-- ================= KAMERA & DETEKSI ================= -->
+  <div class="section-head">
+    <h2>Deteksi Kamera</h2>
+    <p>Teachable Machine, bereaksi terhadap <strong>Oke</strong> dan <strong>Peace</strong> (≥ 90%)</p>
+  </div>
+
+  <section class="workspace">
+    <div class="mini-frame">
+      <div class="frame-title">📷 Live View</div>
+      <div class="camera-scene">
+        <svg class="camera-art" viewBox="0 0 480 360" aria-hidden="true">
+          <circle cx="70" cy="70" r="26" fill="oklch(.92 .14 95)" stroke="oklch(.60 .13 60)" stroke-width="3"/>
+          <path d="M300 60 q-6-26 20-24 q6-36 32-26 q20 6 20 32 q34-10 42 18 Z" fill="oklch(.99 .005 340)" stroke="oklch(.80 .07 250)" stroke-width="3"/>
+          <path d="M-10 130 q14-32 40-14 q-2-36 24-28 q16 4 16 26 q32-8 40 16 Z" fill="oklch(.99 .005 340)" stroke="oklch(.80 .07 250)" stroke-width="3"/>
+          <path d="M150 300 q8-22 30-18 q-4-30 20-28 q14 4 14 22 q22-6 26 12 Z" fill="oklch(.99 .005 340)" stroke="oklch(.80 .07 250)" stroke-width="3"/>
+          <path d="M400 230 q10-24 30-16 q-4-36 24-28 q8 2 10 10 v180 h-130 Z" fill="oklch(.92 .06 345)"/>
+          <text x="24" y="330" font-size="30">🦒</text>
+          <text x="392" y="330" font-size="26">🌳</text>
+        </svg>
+        <div id="webcam-container"></div>
+      </div>
+      <div class="camera-id"><span>CAM_01 / OKE &amp; PEACE</span><span>◉ LIVE VIEW</span></div>
+      <div class="prediction">
+        <div class="prediction-label" id="prediction-label">Menunggu kamera...</div>
+        <div class="prediction-conf" id="prediction-confidence"></div>
+      </div>
+      <div class="camera-tags"><span class="camera-tag">👌 Oke</span><span class="camera-tag">✌️ Peace</span><span class="camera-tag">≥ 90%</span></div>
+    </div>
+
+    <div class="stack">
+      <div class="mini-frame blue">
+        <div class="frame-title">💙 Status</div>
+        <div class="status-item"><span class="status-label">Bluetooth</span><span class="status-value off" id="bt-status">Belum Terhubung</span></div>
+        <div class="status-item"><span class="status-label">Kamera</span><span class="status-value" id="cam-status">Mati</span></div>
+        <div class="status-item"><span class="status-label">Deteksi Saat Ini</span><span class="status-value" id="gesture-status">-</span></div>
+        <div class="status-item"><span class="status-label">Icon micro:bit</span><span class="status-value" id="icon-status">Siaga</span></div>
+        <div class="status-item"><span class="status-label">Perintah Terakhir</span><span class="status-value" id="last-command">-</span></div>
+      </div>
+
+      <div class="mini-frame mint">
+        <div class="frame-title">🍬 Kontrol</div>
+        <div class="btn-group">
+          <button id="btn-connect" onclick="connectBluetooth()">Hubungkan micro:bit</button>
+          <button id="btn-disconnect" class="secondary" onclick="disconnectBluetooth()" disabled>Putuskan Koneksi</button>
+          <button id="btn-start" onclick="startCamera()" disabled>Mulai Kamera</button>
+          <button id="btn-stop" class="danger" onclick="stopCamera()" disabled>Stop Kamera</button>
+        </div>
+        <p class="info">
+          • Tahan gestur stabil selama <strong>0.3 detik</strong> untuk mengirim perintah<br>
+          • Langsung berganti otomatis saat Anda mengubah ke gestur lain<br>
+          • Akurasi minimal <strong>90%</strong> agar deteksi valid
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ICON PREVIEW ================= -->
+  <div class="section-head">
+    <h2>Icon di micro:bit</h2>
+    <p>Pratinjau LED 5×5 yang sedang ditampilkan micro:bit</p>
+  </div>
+  <section class="workspace">
+    <div class="mini-frame">
+      <div class="frame-title">💡 Pratinjau Icon</div>
+      <div class="mb-preview">
+        <div class="mb-board"><div class="led-grid" id="led-grid"></div></div>
+        <div class="mb-caption">
+          <b id="icon-name">Belum ada icon</b>
+          <small>Tunjukkan gestur untuk mengganti icon</small>
+        </div>
+      </div>
+      <div class="icon-legend">
+        <span>👌 <b>Oke</b> → icon centang ✓</span>
+        <span>✌️ <b>Peace</b> → icon hati ♥</span>
+      </div>
+    </div>
+
+    <div class="mini-frame blue">
+      <div class="frame-title">🐱 Log Aktivitas</div>
+      <div class="log-box" id="log"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Oke &amp; Peace × micro:bit × Teachable Machine</span>
+    <span class="foot-stickers" aria-hidden="true">🧸 🐰 🌸 ☁️ 🦒</span>
+  </footer>
+</div>
+
+<script>
+  // ==================== KONFIGURASI ====================
+  const MODEL_URL = "https://teachablemachine.withgoogle.com/models/raZtqtRQu/";
+  const CONFIDENCE_THRESHOLD = 0.90;          // Syarat akurasi minimal 90%
+  const ALLOWED_LABELS = ["oke", "peace"];
+
+  const STABLE_MS = 300;            // Waktu tahan gestur (0.3 detik) agar sangat responsif
+
+  // Icon pratinjau 5x5
+  const ICONS = {
+    "oke":   [ // centang ✓
+      [0,0,0,0,1],
+      [0,0,0,1,1],
+      [1,0,1,1,0],
+      [0,1,1,0,0],
+      [0,1,0,0,0]
+    ],
+    "peace": [ // hati ♥
+      [0,1,0,1,0],
+      [1,1,1,1,1],
+      [1,1,1,1,1],
+      [0,1,1,1,0],
+      [0,0,1,0,0]
+    ]
+  };
+
+  // UUID Bluetooth Web UART
+  const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+  const UART_RX      = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+  // ==================== STATE ====================
+  let model = null;
+  let webcam = null;
+  let maxPredictions = 0;
+  let isPredicting = false;
+
+  let bluetoothDevice = null;
+  let writeCharacteristic = null;
+  let isBluetoothConnected = false;
+
+  let candidateLabel = null;
+  let candidateSince = 0;
+  let activeSentLabel = null;   // Menyimpan gestur yang sedang aktif saat ini
+  let isSending = false;
+
+  function resetDetection() {
+    candidateLabel = null;
+    candidateSince = 0;
+    activeSentLabel = null;
+    isSending = false;
+  }
+
+  // ==================== LED PREVIEW ====================
+  function buildLedGrid() {
+    const grid = document.getElementById("led-grid");
+    grid.innerHTML = "";
+    for (let i = 0; i < 25; i++) {
+      const led = document.createElement("div");
+      led.className = "led";
+      grid.appendChild(led);
+    }
+  }
+
+  function showIcon(label) {
+    const leds = document.getElementById("led-grid").children;
+    const pattern = ICONS[label];
+    if (!pattern) {
+      for (let i = 0; i < 25; i++) leds[i].classList.remove("on");
+      document.getElementById("icon-name").textContent = "Belum ada icon";
+      return;
+    }
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        leds[r * 5 + c].classList.toggle("on", pattern[r][c] === 1);
+      }
+    }
+    document.getElementById("icon-name").textContent =
+      label === "oke" ? "Centang ✓ (Oke 👌)" : "Hati ♥ (Peace ✌️)";
+  }
+
+  // ==================== UI HELPERS ====================
+  function log(msg) {
+    const el = document.getElementById("log");
+    const time = new Date().toLocaleTimeString("id-ID");
+    el.innerHTML = `[${time}] ${msg}<br>` + el.innerHTML;
+  }
+
+  function setBtStatus(connected) {
+    const el = document.getElementById("bt-status");
+    el.textContent = connected ? "Terhubung" : "Belum Terhubung";
+    el.className = "status-value " + (connected ? "ok" : "off");
+    document.getElementById("badgeText").textContent = connected ? "micro:bit Terhubung" : "Menghubungkan micro:bit...";
+    document.getElementById("badge").className = "badge " + (connected ? "live" : "err");
+    document.getElementById("btn-connect").disabled = connected;
+    document.getElementById("btn-disconnect").disabled = !connected;
+    document.getElementById("btn-start").disabled = !connected;
+  }
+
+  function setCamStatus(on) {
+    document.getElementById("cam-status").textContent = on ? "Aktif" : "Mati";
+    document.getElementById("btn-start").disabled = on || !isBluetoothConnected;
+    document.getElementById("btn-stop").disabled = !on;
+  }
+
+  function setGestureStatus(label) {
+    const el = document.getElementById("gesture-status");
+    el.textContent = label ? label.toUpperCase() : "-";
+    el.className = "status-value";
+    if (label === "oke") el.classList.add("ok");
+    else if (label === "peace") el.classList.add("blue");
+    else el.classList.add("other");
+  }
+
+  function setIconStatus(text) {
+    document.getElementById("icon-status").textContent = text;
+  }
+
+  function setLastCommand(label) {
+    document.getElementById("last-command").textContent = label ? label.toUpperCase() : "-";
+  }
+
+  // ==================== BLUETOOTH ====================
+  async function connectBluetooth() {
+    try {
+      if (!navigator.bluetooth) {
+        throw new Error("Browser tidak mendukung Web Bluetooth");
+      }
+
+      log("Mencari micro:bit...");
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: "BBC micro:bit" }],
+        optionalServices: [UART_SERVICE]
+      });
+
+      bluetoothDevice.addEventListener("gattserverdisconnected", onDisconnected);
+
+      log("Menghubungkan ke " + bluetoothDevice.name + "...");
+      const server = await bluetoothDevice.gatt.connect();
+      const service = await server.getPrimaryService(UART_SERVICE);
+      writeCharacteristic = await service.getCharacteristic(UART_RX);
+
+      isBluetoothConnected = true;
+      setBtStatus(true);
+      log("Berhasil terhubung ke micro:bit!");
+    } catch (err) {
+      log("Gagal koneksi: " + err.message);
+      console.error(err);
+      setBtStatus(false);
+    }
+  }
+
+  function onDisconnected() {
+    isBluetoothConnected = false;
+    writeCharacteristic = null;
+    resetDetection();
+    setBtStatus(false);
+    setLastCommand("-");
+    setIconStatus("Siaga");
+    showIcon(null);
+    log("Koneksi terputus");
+    stopCamera();
+  }
+
+  function disconnectBluetooth() {
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+      bluetoothDevice.gatt.disconnect();
+    }
+    onDisconnected();
+  }
+
+  async function sendCommand(label) {
+    // Perbarui UI dan LED preview seketika
+    setLastCommand(label);
+    setIconStatus("Ganti ke " + (label === "oke" ? "Centang ✓" : "Hati ♥"));
+    showIcon(label);
+
+    if (!isBluetoothConnected || !writeCharacteristic) {
+      log("Ikon UI berubah (Bluetooth belum terhubung).");
+      return true;
+    }
+
+    try {
+      const data = new TextEncoder().encode(label + "\n");
+      await writeCharacteristic.writeValue(data);
+      log("Perintah '" + label.toUpperCase() + "' berhasil dikirim ke micro:bit!");
+      return true;
+    } catch (err) {
+      log("Gagal kirim via Bluetooth: " + err.message);
+      console.error(err);
+      return false;
+    }
+  }
+
+  // ==================== TEACHABLE MACHINE ====================
+  async function loadModel() {
+    log("Memuat model Teachable Machine...");
+    const modelURL = MODEL_URL + "model.json";
+    const metadataURL = MODEL_URL + "metadata.json";
+    model = await tmImage.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
+    log("Model AI Siap.");
+  }
+
+  async function startCamera() {
+    if (!model) await loadModel();
+
+    try {
+      webcam = new tmImage.Webcam(420, 315, true);
+      await webcam.setup();
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      const container = document.getElementById("webcam-container");
+      container.innerHTML = "";
+      container.appendChild(webcam.canvas);
+
+      isPredicting = true;
+      resetDetection();
+      setIconStatus("Siaga");
+      setCamStatus(true);
+      log("Kamera aktif, silakan tunjukkan gestur...");
+    } catch (err) {
+      log("Gagal mengaktifkan kamera: " + err.message);
+      console.error(err);
+    }
+  }
+
+  function stopCamera() {
+    isPredicting = false;
+    if (webcam) {
+      webcam.stop();
+      webcam = null;
+    }
+    document.getElementById("webcam-container").innerHTML = "";
+    document.getElementById("prediction-label").textContent = "Kamera dimatikan";
+    document.getElementById("prediction-confidence").textContent = "";
+    setCamStatus(false);
+    setGestureStatus("-");
+    setIconStatus("Siaga");
+    resetDetection();
+    log("Kamera dimatikan");
+  }
+
+  async function loop() {
+    if (!isPredicting || !webcam) return;
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+  }
+
+  async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+
+    // Cari prediksi tertinggi
+    let best = prediction[0];
+    for (let i = 1; i < maxPredictions; i++) {
+      if (prediction[i].probability > best.probability) {
+        best = prediction[i];
+      }
+    }
+
+    const rawLabel = best.className;
+    const label = rawLabel.toLowerCase().trim();
+    const conf = best.probability;
+    const confPercent = (conf * 100).toFixed(1);
+    const now = performance.now();
+
+    // Update tampilan UI prediksi
+    document.getElementById("prediction-label").textContent =
+      label === "oke" ? "👌 " + rawLabel : label === "peace" ? "✌️ " + rawLabel : rawLabel;
+    document.getElementById("prediction-confidence").textContent = "Kepercayaan: " + confPercent + "%";
+    setGestureStatus(label);
+
+    const isAllowed = ALLOWED_LABELS.includes(label);
+    const strong = isAllowed && conf >= CONFIDENCE_THRESHOLD;
+
+    // LOGIKA PERUBAHAN GESTUR YANG DINAMIS
+    if (strong) {
+      // Jika gestur yang terdeteksi berbeda dari yang sedang aktif saat ini
+      if (label !== activeSentLabel) {
+        if (label !== candidateLabel) {
+          // Mulai hitung kestabilan untuk gestur baru ini
+          candidateLabel = label;
+          candidateSince = now;
+          setIconStatus("Mendeteksi " + label.toUpperCase() + "...");
+        } else if (now - candidateSince >= STABLE_MS && !isSending) {
+          // Jika sudah stabil selama STABLE_MS, kirim dan jadikan gestur aktif
+          isSending = true;
+          const ok = await sendCommand(label);
+          isSending = false;
+
+          if (ok) {
+            activeSentLabel = label; // Update gestur aktif
+          }
+          candidateLabel = null;
+        }
+      } else {
+        // Jika gestur sama dengan yang sedang aktif, reset candidate
+        candidateLabel = null;
+      }
+    } else {
+      // Jika akurasi di bawah 90%, reset kandidat stabil
+      candidateLabel = null;
+    }
+  }
+
+  // ==================== INIT ====================
+  window.addEventListener("load", () => {
+    buildLedGrid();
+    showIcon(null);
+    if (!navigator.bluetooth) {
+      log("Browser tidak mendukung Web Bluetooth. Gunakan Google Chrome / Microsoft Edge.");
+      document.getElementById("btn-connect").disabled = true;
+    } else {
+      log("Sistem siap. Silakan hubungkan micro:bit.");
+    }
+  });
+</script>
+</body>
+</html>
